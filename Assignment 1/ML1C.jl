@@ -24,23 +24,17 @@ md"*Specify which Machine Learning problem are you solving.*
 
 - We are clearly solving a classification problem with labeled input. Therefore, we are solving this classification problem as supervised learning, specifically using Support Vector Machines (SVM)."
 
-# ╔═╡ 7df09283-99ba-433d-aeb6-4b84c1a7ca88
-md"*Provide a short summary of the features and the labels you are working on.*"
-
 # ╔═╡ 81bad522-8d32-45ef-bffc-26b1e7f4d4bc
 md"*Please answer the following questions*
 - *Are these datasets linearly separable?*
 - *Are these datasets randomly chosen?*
 - *Is the sample size enough to guarantee generalization?*"
 
-# ╔═╡ 2c416031-2822-4281-9155-78c43ea5256b
-md"*Provide an explanation how and why the code is working. You can add comments and/or formal explanations into the notebook.*"
-
-# ╔═╡ b9f7ea8b-5606-427f-9336-ae3b20580abd
-md"*Provide quantitative evidence for generalization using the provided dataset.*"
-
 # ╔═╡ 18eb065a-9f44-42cc-b54e-b2db7abcf1bc
 md"## SVM Implementation"
+
+# ╔═╡ 2c416031-2822-4281-9155-78c43ea5256b
+md"*Provide an explanation how and why the code is working. You can add comments and/or formal explanations into the notebook.*"
 
 # ╔═╡ 7bb5c05c-6e02-4332-8395-e95049dbebf2
 md"### `SVM` struct (class)"
@@ -98,12 +92,12 @@ end;
 md"### `predictSVM` method"
 
 # ╔═╡ 152a4279-13ea-43c7-a1d1-9a00fd393d2e
-md"For the `predict` method we just only evaluate the loss function to predict the label and count the number of misses with respect to the real label. From here on, we will use 🔵 for $-1$ and 🔴 for $1$."
+md"For the `predict` method we just only evaluate the loss function to predict the label and count the number of misses with respect to the real label. From here on, we will use 🔴 for $-1$ and 🔵 for $1$."
 
 # ╔═╡ bca82be4-6c30-4a14-a4db-dc7f2e5fa939
 function predictSVM(svm::SVM, features)
 	
-	[(sign(dot(row, svm.w) + svm.b) < 0 ? "🔵" : "🔴") for row in eachrow(features)]
+	[(sign(dot(row, svm.w) + svm.b) < 0 ? "🔴" : "🔵") for row in eachrow(features)]
 	
 end;
 
@@ -132,13 +126,13 @@ function results(svm::SVM, data)
 		end
 	end
 
-	misses_blue_pc = round(misses_blue/total, digits=3)
-	misses_red_pc = round(misses_red/total, digits=3)
-	accuracy = round(1 - (misses_blue_pc + misses_red_pc), digits=3)
+	misses_blue_pc = round(misses_blue/total, digits=4)
+	misses_red_pc = round(misses_red/total, digits=4)
+	accuracy = round(1 - misses_blue_pc - misses_red_pc, digits=4)
 	
 md"
-- 🔵 (-1) Misses: $(misses_blue_pc*100)%
-- 🔴 (1) Misses: $(misses_red_pc*100)%
+- 🔴 (-1) Misses: $(misses_blue_pc*100)%
+- 🔵 (1) Misses: $(misses_red_pc*100)%
 - Accuracy: $(accuracy*100)%
 - Number of rows: $(total)
 "
@@ -157,12 +151,19 @@ function plotSVM(svm::SVM, data, new_data)
 	
 	if svm.num_features == 2
 		plotlyjs()
+
+		min_X = minimum(vec(
+			vcat(Matrix(data)[:,1:1], Matrix(new_data)[:,1:1])
+		)) - 10
+		
+		max_X = maximum(vec(
+			vcat(Matrix(data)[:,1:1], Matrix(new_data)[:,1:1])
+		)) + 10
 		
 		q = plot()
 		
-		x = range(-100, 100, length=100)
-		y = (svm.b .- (svm.w[1] .* x)) ./ svm.w[2]
-		plot!(q, x, y, label="Decision bound", lc=:black, lw=2)
+		plane2d(x) = (svm.b .- (svm.w[1] .* x)) ./ svm.w[2]
+		plot!(q, plane2d, min_X, max_X, label="Decision bound", lc=:black, lw=2)
 		@df data scatter!(q, :x1, :x2, color=:x3, label=false)
 		@df new_data scatter!(q, :x1, :x2, color=:gold, label="New data")
 		
@@ -218,8 +219,8 @@ end
 # ╔═╡ 3f6647e1-d496-4136-8500-8e4b73f5a820
 results(svm_example_1, new_example_1)
 
-# ╔═╡ ac54f2d9-a46b-43ad-8d0c-362c78f10802
-svm_example_1.num_features
+# ╔═╡ 2d1b17f4-8d65-43e4-9e78-bff6488a344b
+md"Graphically, we can see that in fact the SVM is making a good job at finding the decision boundary."
 
 # ╔═╡ d32c9015-879f-407e-89be-0729c02cbb80
 plotSVM(svm_example_1, DataFrame(example_1, :auto), DataFrame(new_example_1, :auto))
@@ -257,6 +258,9 @@ plotSVM(svm_example_2, DataFrame(example_2, :auto), DataFrame(new_example_2, :au
 # ╔═╡ f3816cc9-f796-4905-8bd6-3f31ec44b6dd
 md"## Database 1 - Banknote Authentication Data Set"
 
+# ╔═╡ 7df09283-99ba-433d-aeb6-4b84c1a7ca88
+md"*Provide a short summary of the features and the labels you are working on.*"
+
 # ╔═╡ 3b8aa2c8-1230-4d70-a77a-59def2dc24a7
 md"Here we download the first database."
 
@@ -274,7 +278,7 @@ begin
 end
 
 # ╔═╡ 85aaca1e-f83f-4e1e-97ad-23a862fe8f86
-md"We proceed to split the data into training and testing, with an 80/20 split. There are $(size(filter(row -> row.Column5 == -1, banknote_df))[1]) items labeled as 🔵, and $(size(filter(row -> row.Column5 == 1, banknote_df))[1]) items labeled as 🔴."
+md"We proceed to split the data into training and testing, with an 80/20 split. There are $(size(filter(row -> row.Column5 == -1, banknote_df))[1]) items labeled as 🔴, and $(size(filter(row -> row.Column5 == 1, banknote_df))[1]) items labeled as 🔵."
 
 # ╔═╡ f52ef744-3755-45c3-a014-2b137238379c
 banknote_train, banknote_test = partition(
@@ -303,7 +307,7 @@ begin
 end
 
 # ╔═╡ 8863506e-a48a-419f-89c1-e5ef0a546435
-md"As before, we proceed to split the data into training and testing, with an 80/20 split. There are $(size(filter(row -> row.Occupancy == -1, occupancy_df))[1]) items labeled as 🔵, and $(size(filter(row -> row.Occupancy == 1, occupancy_df))[1]) items labeled as 🔴."
+md"As before, we proceed to split the data into training and testing, with an 80/20 split. There are $(size(filter(row -> row.Occupancy == -1, occupancy_df))[1]) items labeled as 🔴, and $(size(filter(row -> row.Occupancy == 1, occupancy_df))[1]) items labeled as 🔵."
 
 
 # ╔═╡ 0d4f0f79-ee0b-4ddc-8c4c-4f1988a0861a
@@ -313,21 +317,24 @@ occupancy_train, occupancy_test = partition(
 	shuffle=true);
 
 # ╔═╡ 455be872-862c-4bc6-85d2-a595eb7ac0c5
-# begin
-# 	occupancy_test = CSV.read("./datatest.txt", DataFrame, header=true)
-# 	select!(occupancy_test, Not([:Column1, :date]))
-# 	replace!(occupancy_test[!, "Occupancy"], 0 => -1);
-# 	occupancy_test
-# end
+begin
+	occupancy_test_raw = CSV.read("./datatest.txt", DataFrame, header=true)
+	select!(occupancy_test_raw, Not([:Column1, :date]))
+	replace!(occupancy_test_raw[!, "Occupancy"], 0 => -1);
+	occupancy_test
+end
 
-# ╔═╡ 2b7d7730-5ba6-4147-87c7-0d189ab6ba9f
-md"In the provided testing data set, there are $(size(filter(row -> row.Occupancy == -1, occupancy_test))[1]) items labeled as 🔵, and $(size(filter(row -> row.Occupancy == 1, occupancy_test))[1]) items labeled as 🔴."
+# ╔═╡ 08fbc31c-26c5-4d4e-b2c4-45eaa43d6535
+md"Checking the provided testing data set, there are $(size(filter(row -> row.Occupancy == -1, occupancy_test_raw))[1]) items labeled as 🔴, and $(size(filter(row -> row.Occupancy == 1, occupancy_test_raw))[1]) items labeled as 🔵. However, we decided to sample the training data set to get the testing data, as we don't know if the provided testing data is included in the training data."
 
 # ╔═╡ ef85d0ae-7da8-4802-8939-ec0580764fd4
 begin
 	svm_occupancy = SVM()
 	fit(svm_occupancy, Matrix(occupancy_train))
 end
+
+# ╔═╡ b9f7ea8b-5606-427f-9336-ae3b20580abd
+md"*Provide quantitative evidence for generalization using the provided dataset.*"
 
 # ╔═╡ 088d1238-0392-4ba2-8135-0c8212ee7109
 results(svm_occupancy, Matrix(occupancy_test))
@@ -1834,12 +1841,11 @@ version = "1.4.1+0"
 # ╔═╡ Cell order:
 # ╟─697ea7a9-062c-45e5-a51c-e29ce1e86a09
 # ╟─3576ee93-0a83-49af-8a61-d7483885f002
-# ╟─7df09283-99ba-433d-aeb6-4b84c1a7ca88
-# ╟─81bad522-8d32-45ef-bffc-26b1e7f4d4bc
-# ╟─2c416031-2822-4281-9155-78c43ea5256b
 # ╟─b9f7ea8b-5606-427f-9336-ae3b20580abd
+# ╟─81bad522-8d32-45ef-bffc-26b1e7f4d4bc
 # ╠═b025ca2e-09c2-44d3-a1be-817d772529d8
 # ╟─18eb065a-9f44-42cc-b54e-b2db7abcf1bc
+# ╟─2c416031-2822-4281-9155-78c43ea5256b
 # ╟─7bb5c05c-6e02-4332-8395-e95049dbebf2
 # ╟─ccc9c4fb-4fbd-44df-9eeb-27d2530540f1
 # ╠═94fafcfe-3873-4dea-ad75-ecc428a7467d
@@ -1859,7 +1865,7 @@ version = "1.4.1+0"
 # ╠═23347e25-58e2-416a-9589-1e171cbc2909
 # ╠═8e43cca2-22f5-4457-b782-9d75345c9b6f
 # ╠═3f6647e1-d496-4136-8500-8e4b73f5a820
-# ╠═ac54f2d9-a46b-43ad-8d0c-362c78f10802
+# ╟─2d1b17f4-8d65-43e4-9e78-bff6488a344b
 # ╠═d32c9015-879f-407e-89be-0729c02cbb80
 # ╟─3558b769-445d-4d70-9738-2cd4909d36ba
 # ╠═59d8f557-14ce-449b-b380-97cf705a532e
@@ -1868,6 +1874,7 @@ version = "1.4.1+0"
 # ╠═a02d39bd-708d-4826-99ad-50c55db5bd0c
 # ╠═29c90d20-7498-4663-8225-46dd78cbbbfd
 # ╟─f3816cc9-f796-4905-8bd6-3f31ec44b6dd
+# ╟─7df09283-99ba-433d-aeb6-4b84c1a7ca88
 # ╟─3b8aa2c8-1230-4d70-a77a-59def2dc24a7
 # ╠═dcd0aae6-40fd-4e5f-842f-a238e4a369f1
 # ╟─e10af19f-4e29-4a91-a224-79fdf2c348cb
@@ -1881,7 +1888,7 @@ version = "1.4.1+0"
 # ╟─8863506e-a48a-419f-89c1-e5ef0a546435
 # ╠═0d4f0f79-ee0b-4ddc-8c4c-4f1988a0861a
 # ╠═455be872-862c-4bc6-85d2-a595eb7ac0c5
-# ╟─2b7d7730-5ba6-4147-87c7-0d189ab6ba9f
+# ╟─08fbc31c-26c5-4d4e-b2c4-45eaa43d6535
 # ╠═ef85d0ae-7da8-4802-8939-ec0580764fd4
 # ╠═088d1238-0392-4ba2-8135-0c8212ee7109
 # ╟─00000000-0000-0000-0000-000000000001
