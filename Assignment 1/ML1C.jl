@@ -16,6 +16,7 @@ end
 
 # ╔═╡ 697ea7a9-062c-45e5-a51c-e29ce1e86a09
 md"# Code Assignment \# 1  
+*Universidad Nacional de Colombia*\
 Sebastian Molina  \
 [smolinad@unal.edu.co](mailto:smolinad@unal.edu.co)"
 
@@ -23,6 +24,9 @@ Sebastian Molina  \
 md"*Specify which Machine Learning problem are you solving.*
 
 - We are clearly solving a classification problem with labeled input. Therefore, we are solving this classification problem as supervised learning, specifically using Support Vector Machines (SVM)."
+
+# ╔═╡ b9f7ea8b-5606-427f-9336-ae3b20580abd
+md"*Provide quantitative evidence for generalization using the provided dataset.*"
 
 # ╔═╡ 81bad522-8d32-45ef-bffc-26b1e7f4d4bc
 md"*Please answer the following questions*
@@ -162,9 +166,21 @@ function plotSVM(svm::SVM, data, new_data)
 		
 		q = plot()
 		
-		plane2d(x) = (svm.b .- (svm.w[1] .* x)) ./ svm.w[2]
-		plot!(q, plane2d, min_X, max_X, label="Decision bound", lc=:black, lw=2)
+		bound2d(x) = -(svm.w[1]*x + svm.b) / svm.w[2]
+		red_sv2d(x) = -(svm.w[1]*x + svm.b + 1) / svm.w[2]
+		blue_sv2d(x) = -(svm.w[1]*x + svm.b - 1) / svm.w[2]
+		
+		plot!(q, bound2d, min_X, max_X,
+			label="Decision bound", lc=:black, lw=2)
+		
+		plot!(q, red_sv2d, min_X, max_X,
+			label="Support vector -1", lc=:red, lw=2)
+		
+		plot!(q, blue_sv2d, min_X, max_X, 
+		 	label="Support vector +1", lc=:blue, lw=2)
+		
 		@df data scatter!(q, :x1, :x2, color=:x3, label=false)
+		
 		@df new_data scatter!(q, :x1, :x2, color=:gold, label="New data")
 		
 	elseif svm.num_features == 3
@@ -173,10 +189,24 @@ function plotSVM(svm::SVM, data, new_data)
 
 		p = plot()
 		
-		plane3d(x, y) = svm.w[1]*x + svm.w[2]*y + svm.b
-		surface!(p, -100:1:100, -100:1:100, plane3d, colour=:green, opacity=0.5, label="Decision bound")
-		@df data scatter!(p, :x1, :x2, :x3, color=:x4, label=false)
-		@df new_data scatter!(p, :x1, :x2, :x3, color=:gold, label="New data")
+		bound3d(x, y) = -(dot(svm.w[1:2], [x y]) + svm.b) / svm.w[3]
+		red_sv3d(x, y) = -(dot(svm.w[1:2], [x y]) + svm.b + 1) / svm.w[3]
+		blue_sv3d(x, y) = -(dot(svm.w[1:2], [x y]) + svm.b - 1) / svm.w[3]
+		
+		surface!(p, -100:1:100, -100:1:100, bound3d, 
+			color=:green, opacity=0.7, label="Decision bound")
+		
+		surface!(p, -100:1:100, -100:1:100, red_sv3d, 
+			color=:red, opacity=0.3, label="Decision bound")
+		
+		surface!(p, -100:1:100, -100:1:100, blue_sv3d, 
+			color=:blue, opacity=0.3, label="Decision bound")
+		
+		@df data scatter!(p, :x1, :x2, :x3,
+			color=:x4, label=false)
+		
+		@df new_data scatter!(p, :x1, :x2, :x3, 
+			color=:gold, label="New data")
 
 	else
 		
@@ -332,9 +362,6 @@ begin
 	svm_occupancy = SVM()
 	fit(svm_occupancy, Matrix(occupancy_train))
 end
-
-# ╔═╡ b9f7ea8b-5606-427f-9336-ae3b20580abd
-md"*Provide quantitative evidence for generalization using the provided dataset.*"
 
 # ╔═╡ 088d1238-0392-4ba2-8135-0c8212ee7109
 results(svm_occupancy, Matrix(occupancy_test))
