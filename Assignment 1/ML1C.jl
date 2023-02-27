@@ -197,10 +197,10 @@ function plotSVM(svm::SVM, data, new_data)
 			color=:green, opacity=0.7, label="Decision bound")
 		
 		surface!(p, -100:1:100, -100:1:100, red_sv3d, 
-			color=:red, opacity=0.3, label="Decision bound")
+			color=:red, opacity=0.5, label="Decision bound")
 		
 		surface!(p, -100:1:100, -100:1:100, blue_sv3d, 
-			color=:blue, opacity=0.3, label="Decision bound")
+			color=:blue, opacity=0.5, label="Decision bound")
 		
 		@df data scatter!(p, :x1, :x2, :x3,
 			color=:x4, label=false)
