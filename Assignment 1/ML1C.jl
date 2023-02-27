@@ -197,10 +197,10 @@ function plotSVM(svm::SVM, data, new_data)
 			color=:green, opacity=0.7, label="Decision bound")
 		
 		surface!(p, -100:1:100, -100:1:100, red_sv3d, 
-			color=:red, opacity=0.5, label="Decision bound")
+			color=:red, opacity=0.5, label="SV -1")
 		
 		surface!(p, -100:1:100, -100:1:100, blue_sv3d, 
-			color=:blue, opacity=0.5, label="Decision bound")
+			color=:blue, opacity=0.5, label="SV +1")
 		
 		@df data scatter!(p, :x1, :x2, :x3,
 			color=:x4, label=false)
@@ -241,8 +241,11 @@ end
 
 # ╔═╡ 8e43cca2-22f5-4457-b782-9d75345c9b6f
 begin
-	new_example_1 = [0 8;
-				   5 -5]
+	new_example_1 = [
+		0 8;
+		5 -5
+	]
+	
 	predictSVM(svm_example_1, new_example_1)
 end
 
@@ -259,12 +262,13 @@ plotSVM(svm_example_1, DataFrame(example_1, :auto), DataFrame(new_example_1, :au
 md"#### Example 2: 3D version"
 
 # ╔═╡ 59d8f557-14ce-449b-b380-97cf705a532e
-example_2 = [1 7 -4 -1;
-		   2 8 -5 -1;
-		   3 8 -4 -1;
-		   5 1  2 1;
-		   6 -1 3 1;
-		   7 3  5 1];
+example_2 = [
+	1 7 -4 -1;
+	2 8 -5 -1;
+	3 8 -4 -1;
+	5 1  2 1;
+	6 -1 3 1;
+	7 3  5 1];
 
 # ╔═╡ 83c1de74-cc60-4c77-a612-356edead4004
 begin
@@ -274,8 +278,11 @@ end
 
 # ╔═╡ 3d309220-4c4a-4d1c-af53-d4f4cd7f7428
 begin
-	new_example_2 = [0 8 -4;
-				   5 -5 3]
+	new_example_2 = [
+		0 8 -4;
+		5 -5 3
+	]
+	
 	predictSVM(svm_example_2, new_example_2)
 end
 
