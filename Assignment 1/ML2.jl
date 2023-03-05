@@ -9,21 +9,17 @@ begin
 	
 	using CSV
 	using DataFrames
-	using LinearAlgebra
-	using StatsPlots
-	import PlotlyJS as pltjs
 	using Dates
 	
+	using LinearAlgebra
+	
+	using StatsPlots
+	import PlotlyJS as pltjs
+	
 	using MLJ
-	
-	transform = DataFrames.transform
-	
-end;
-
-# ╔═╡ c14eacc2-f89f-4866-b835-7a063c5e73a8
-begin
 	using MLJLinearModels
 	using DecisionTree
+	
 end;
 
 # ╔═╡ dff3c71e-2ed4-4663-8441-e10b1b2f76d6
@@ -33,34 +29,51 @@ Sebastian Molina  \
 [smolinad@unal.edu.co](mailto:smolinad@unal.edu.co)"
 
 # ╔═╡ 9786047f-c383-4269-af6f-90039f3caf74
-md"In this notebook we will be solving classification problems with labeled input. Therefore, we are solving this classification problem as supervised learning, specifically using Support Vector Machines (SVM), Logistic Regression, and Decision Trees."
+md"## Problem Identification
 
-# ╔═╡ 942ad83e-fdd4-4ac2-b28f-6c13fdef1746
-md"*Provide quantitative evidence for generalization using the provided dataset.*"
+In this notebook we will be solving classification problems with labeled input. Therefore, we are solving this classification problem as supervised learning, specifically using Support Vector Machines (SVM), Logistic Regression, and Decision Trees."
 
-# ╔═╡ d54bb0d6-d324-4a11-93c3-f472f901a8ea
-md"*Please answer the following questions*
-- *Are these datasets linearly separable?*
-- *Are these datasets randomly chosen?*
-- *Is the sample size enough to guarantee generalization?*"
+# ╔═╡ 958e8517-f147-4a61-a3c1-3335f8e8c36d
+md"## Importing the packages
+In this notebook we will use `MLJ`, `MLJLinearModels` and `DecisionTree` packages for data processing, Logistic Regression and Decision Tree models, respectively."
+
+# ╔═╡ fbd49b80-c4e9-4b8d-83d7-ac3c3c958a38
+md"## Utility functions
+Here we define some utility functions that will be used recurrently in this notebook."
+
+# ╔═╡ db362343-b3be-4a2d-b4b0-002417560b3a
+md"### `dataSplit` function
+This function splits a `DataFrame` into training an testing into a 80/20 split. Then, it will convert this dataframes into matrices, which is the common input for this models."
+
+# ╔═╡ 48a07b04-52e6-4dbe-beb5-5b45e148136e
+function dataSplit(db)
+	train, test = MLJ.partition(
+		db, 0.8, 
+		rng=123, 
+		shuffle=true)
+
+	Matrix(train), Matrix(test)
+end;
+
+# ╔═╡ ab3f0acd-d06f-4b6b-8a09-96fd6cf9fb24
+md"### Sigmoid function
+Here we define the sigmoid (logistic) function, defined by $S(x) = \frac{1}{1+
+e^{-x}}$. and will be used to make predictions with the Logistic Regression models."
+
+# ╔═╡ bafb0ac9-6d68-4cb8-b529-715553b88425
+sigmoid(x) = 1 / (1 + exp(-x));
 
 # ╔═╡ 00540701-8536-4603-a337-05ca3df89ad7
 md"## SVM Implementation with Regularization"
 
-# ╔═╡ bfbfafe6-4136-4273-aacb-789baaa72fa0
-md"*Provide an explanation how and why the code is working. You can add comments and/or formal explanations into the notebook.*"
-
 # ╔═╡ 5837be60-44d6-4219-b0b3-940de66337de
-md"### `SVMRegular` struct (class)"
-
-# ╔═╡ 5c27e248-2405-46e0-9822-9ce8ccb8e793
-md"
+md"### `SVMRegular` struct (class)
 - `svm.w`: It is the weights vector, which in part defines the decision bound.
 - `svm.b`: Known as *bias*, it is the displacement of the decision bound.
+- `svm.lr`: This parameter is the learning rate of the gradient descent algorithm, which determines the step size towards the minimum of the cost function in each iteration. 
+- `lambda`: This hyperparameter is related to the regularization of the weights vector.
 - `svm.num_iters`: Number of iterations to make and find the decision bound.
-- `svm.num_features`: It is the number of features (coordinates or dimensions) in a feature set (data vector). From the provided databases, it will be the number of columns minus one.
-
-"
+- `svm.num_features`: It is the number of features (coordinates or dimensions) in a feature set (data vector). From the provided databases, it will be the number of columns minus one."
 
 # ╔═╡ b5645969-e265-46d5-b676-1404b1b9d69c
 mutable struct SVMRegular
@@ -70,7 +83,7 @@ mutable struct SVMRegular
 	lr::Float64
 	lambda::Float64
 	num_iters::Int
-
+	
 	num_features::Int
 	
 	function SVMRegular()
@@ -80,6 +93,60 @@ end
 
 # ╔═╡ 6519e8ad-ea5c-428a-90be-a81ef87195c0
 md"### `fit` method"
+
+# ╔═╡ 9ee89705-ad5a-465a-b704-2dab939c3ed7
+md"
+#### Problem
+
+The goal of the Support Vector Machine (SVM) algorithm is to find a decision boundary hyperplane $\mathbf{w} \cdot \mathbf{x} - b = 0$ which separates the data into two classes, while maximizing the distance between the two possible clusters of input data. For a given input data vector $\mathbf{x}_i$ and its corresponding label $y_i$, this problem is designed by the following constraints:
+
+$\begin{cases}
+\mathbf{w} \cdot \mathbf{x}_i - b \leq -1,\ y_i = -1\\
+\mathbf{w} \cdot \mathbf{x}_i - b \geq +1,\ y_i = +1\\
+\end{cases}.$
+
+The preceding constraints can be resumed into 
+
+$y_i(\mathbf{w} \cdot \mathbf{x}_i) \geq +1.$
+
+By the [distance between parallel hyperplanes formula](https://metric.ma.ic.ac.uk/metric_public/vectors/vector_coordinate_geometry/distance_between_planes.html), we know that the distance between the suporting hyperplanes which intercept the closest data points in different clusters is given by $D = \frac{2}{|w|}$. As we want to maximize $D$, we should minimize $|w|$.
+
+#### Hinge function
+We need a systematic way to find the $\mathbf{w}$ vector, so we introduce the following loss function. In case the label is predicte incorrectly,
+
+$L_{\mathbf{w}, b}(\mathbf{x}_i, y_i) = \begin{cases}
+0&,\ y_i(\mathbf{w} \cdot \mathbf{x}_i - b) \geq +1\\
+1 - y_i(\mathbf{w} \cdot \mathbf{x}_i - b)&,\ \text{otherwise} 
+\end{cases}.$
+
+#### Regularization
+This is a method that yields a simpler and maybe inexact result, opposed to a complex and more exact result. For this prblem, consider the following cost function:
+
+$J = \lambda|\mathbf{w}|^2 + \frac{1}{N}\sum_{i=1}^{N} L_{\mathbf{w}, b}(\mathbf{x}_i, y_i).$
+
+Observe that for the $i$-th vector data $\mathbf{x}_i$ and its corresponding label $y_i$, we have that
+
+$J_i = \begin{cases}
+\lambda|\mathbf{w}|^2&,\ y_i(\mathbf{w} \cdot \mathbf{x}_i - b) \geq 1\\
+\lambda|\mathbf{w}|^2 + 1 - y_i(\mathbf{w} \cdot \mathbf{x}_i - b)&,\ \text{otherwise}
+\end{cases}.$
+
+As we want to minimize cost, using [gradient descent](https://en.wikipedia.org/wiki/Gradient_descent) we can create update rules for $\mathbf{w}$ and $b$ for every iteration of the minimization process. Therefore,
+
+$\begin{cases}
+\frac{\partial J_i}{\partial \mathbf{w}} = 2\lambda\mathbf{w}&, \frac{\partial J_i}{\partial b} = 0&&,\ y_i(\mathbf{w} \cdot \mathbf{x}_i - b) \geq 1\\
+\frac{\partial J_i}{\partial \mathbf{w}} = 2\lambda\mathbf{w} - y_i\mathbf{x}_i&, \frac{\partial J_i}{\partial b} = y_i&&,\ \text{otherwise}
+\end{cases}.$
+
+Using the previous results, we can create the update rules including the learning rate parameter $\gamma$, as follows:
+
+$\begin{cases}
+\mathbf{w} = \mathbf{w} - \gamma(2 \lambda \mathbf{w}) &, b = b &&,\ y_i(\mathbf{w} \cdot \mathbf{x}_i - b) \geq 1\\
+\mathbf{w} = \mathbf{w} - \gamma(2 \lambda \mathbf{w} - y_i\mathbf{x}_i) &, b = b - \gamma y_i &&,\ \text{otherwise}
+\end{cases}.$
+
+Let's implement this algorithm into the `fitSVM` function.
+"
 
 # ╔═╡ a587a40c-582b-48fc-a3bf-aed21c9c5875
 function fitSVM(svm::SVMRegular, data::Matrix)
@@ -91,7 +158,7 @@ function fitSVM(svm::SVMRegular, data::Matrix)
 	
 	for _ in range(1, svm.num_iters)
 		for row in eachrow(data)
-			if (last(row) * (dot(svm.w, row[1:svm.num_features]) + svm.b)) >= 1
+			if (last(row) * (dot(svm.w, row[1:svm.num_features]) - svm.b)) >= 1
 				svm.w -= svm.lr * (2 * svm.lambda .* svm.w)
 			else
 				svm.w -= svm.lr * (2 * svm.lambda .* svm.w - (row[1:svm.num_features] .* last(row)))
@@ -103,10 +170,8 @@ function fitSVM(svm::SVMRegular, data::Matrix)
 end;
 
 # ╔═╡ 72484660-f9ea-4be1-bc76-f15102cc2515
-md"### `predictSVM` method"
-
-# ╔═╡ 73bcf094-743c-4232-a927-97b5dd372ec5
-md"For the `predict` method we just only evaluate the loss function to predict the label and count the number of misses with respect to the real label. From here on, we will use 🔴 for $-1$ and 🔵 for $1$."
+md"### `predictSVM` function
+For the `predict` method we just only evaluate the loss function to predict the label and count the number of misses with respect to the real label. From here on, we will use 🔴 for $-1$ and 🔵 for $1$."
 
 # ╔═╡ d5537edd-28ec-46b0-b9d9-f347b772ccb2
 function predictSVM(svm::SVMRegular, features)
@@ -140,9 +205,9 @@ function resultsSVM(svm::SVMRegular, data)
 		end
 	end
 
-	misses_blue_pc = round(misses_blue/total, digits=4)
-	misses_red_pc = round(misses_red/total, digits=4)
-	accuracy = round(1 - misses_blue_pc - misses_red_pc, digits=4)
+	misses_blue_pc = round(misses_blue/total, digits=3)
+	misses_red_pc = round(misses_red/total, digits=3)
+	accuracy = round(1 - misses_blue_pc - misses_red_pc, digits=3)
 	
 md"
 - 🔴 (-1) Misses: $(misses_blue_pc*100)%
@@ -154,10 +219,8 @@ md"
 end;
 
 # ╔═╡ b9e43bd4-6d88-4b08-8a3a-fabef87a0ece
-md"### `plot` method"
-
-# ╔═╡ 4c9eaa88-0711-4fd4-95a9-5574c294d491
-md"The `plot` method only works data with a maximum of 3 features (obvioulsy)."
+md"### `plotSVM` function
+The `plotSVM` function only works data with a maximum of 3 features, and it plots the decision boundary and supporting vectors of the SVM."
 
 # ╔═╡ 53fb9803-ae4d-47ad-b1cd-d354d119afda
 function plotSVM(svm, data, new_data)
@@ -230,10 +293,8 @@ function plotSVM(svm, data, new_data)
 end;
 
 # ╔═╡ e761d48f-6b04-4c8d-be81-18edc017e95e
-md"## Examples"
-
-# ╔═╡ 5249a818-ef10-4e5a-b1c8-b78dd105390d
-md"Here we will use the example provided in the Jupyter Notebook, with a little modification for 3D."
+md"## Examples
+Here we will use the example provided in the Jupyter Notebook, with a little modification for 3D."
 
 # ╔═╡ e1bcc629-1c9c-4d8e-90f5-ada601350fef
 md"### Example 1: 2D version"
@@ -329,9 +390,6 @@ md"Here we download the first database, obtained from the [UCI Machine Learning 
 # ╔═╡ c4165e26-7fd6-4833-9c09-e28b7be27b01
 banknote_raw = download("https://archive.ics.uci.edu/ml/machine-learning-databases/00267/data_banknote_authentication.txt");
 
-# ╔═╡ 94bb684a-81d8-4255-887b-4f00edee3d0d
-md"Then we change the label $0$ to $-1$. Observe that the label is in the fifth column, and in general, we will format data so that the label column is the $n$-th column."
-
 # ╔═╡ c590c041-dd90-4f3d-895f-ff0607a0d0ee
 begin
 	banknote_df = CSV.read(banknote_raw, 
@@ -339,61 +397,55 @@ begin
 		header=["Variance", "Skewness", "Kurtosis", "Entropy", "Label"]
 	)
 	
-	replace!(banknote_df[!, "Label"], 0 => -1);
 	banknote_df
 end
-
-# ╔═╡ 747f5398-9f10-47f7-b3b1-17c0bbe0125f
-md"We proceed to split the data into training and testing, with an 80/20 split. There are $(size(filter(row -> row.Label == -1, banknote_df))[1]) items labeled as 🔴, and $(size(filter(row -> row.Label == 1, banknote_df))[1]) items labeled as 🔵."
-
-# ╔═╡ c879a11f-9796-4f53-9aef-f5069ea57453
-banknote_train, banknote_test = MLJ.partition(
-	banknote_df, 0.8, 
-	rng=123, 
-	shuffle=true);
 
 # ╔═╡ d7820f71-2a92-4693-9dc4-fcfd5ecb05a5
 md"### SVM"
 
+# ╔═╡ 94bb684a-81d8-4255-887b-4f00edee3d0d
+md"Here, we change the label $0$ to $-1$, as needed by the SVM algorithm. Observe that the label is in the fifth column, and in general, we will format data so that the label column is the $n$-th column. Next, we proceed to split the data into training and testing, with an 80/20 split. There are $(size(filter(row -> row.Label == 0, banknote_df))[1]) items labeled as 🔴, and $(size(filter(row -> row.Label == 1, banknote_df))[1]) items labeled as 🔵."
+
+# ╔═╡ c879a11f-9796-4f53-9aef-f5069ea57453
+begin
+	svm_banknote_df = deepcopy(banknote_df)
+	replace!(svm_banknote_df[!, "Label"], 0 => -1)
+	
+	svm_banknote_train, svm_banknote_test = dataSplit(svm_banknote_df)
+end;
+
 # ╔═╡ 4e6cf955-5d1b-4eff-8243-e3826650ca6b
 begin
 	svm_banknote = SVMRegular()
-	fitSVM(svm_banknote, Matrix(banknote_train))
+	fitSVM(svm_banknote, svm_banknote_train)
 end
 
-# ╔═╡ 33e0dc60-794f-4118-a979-ec7ee19399c3
-svm_banknote.w
-
 # ╔═╡ de6c5c60-e2d5-4eef-87c0-facd98c447cd
-resultsSVM(svm_banknote, Matrix(banknote_test))
+resultsSVM(svm_banknote, svm_banknote_test)
 
 # ╔═╡ 8bd3dabc-3a37-477c-ae71-dbf34bd16c4b
 md"### Logistic Regression"
 
-# ╔═╡ bafb0ac9-6d68-4cb8-b529-715553b88425
-sigmoid(x) = 1 / (1 + exp(-x));
-
-# ╔═╡ 6a072366-306a-4669-8d34-a1450dfb7cb9
-begin
-	replace!(banknote_train[!, "Label"], -1 => 0)
-	replace!(banknote_test[!, "Label"], -1 => 0)
-end;
+# ╔═╡ d31c977b-408b-4a97-89df-9f2a2cce1ae6
+lr_banknote_train, lr_banknote_test = dataSplit(banknote_df);
 
 # ╔═╡ 8705844f-7334-4fd9-8787-4a3836b1690a
 lr_banknote = LogisticRegression();
 
 # ╔═╡ 9b6d305e-efec-48f5-8981-fdcfea9052bd
-lr_banknote_fit = fit(lr_banknote,
-	Matrix(banknote_train)[:,1:end-1],
-	Matrix(banknote_train)[:,end]
+lr_banknote_fit = fit(
+	lr_banknote,
+	lr_banknote_train[:,1:end-1],
+	lr_banknote_train[:,end]
 );
 
 # ╔═╡ 77c24ac4-b49e-4469-9337-a8b0b3543316
-lr_banknote_predict = (x ->x <= 0.5 ? 0. : 1.).(sigmoid.(Matrix(banknote_test)*lr_banknote_fit));
+lr_banknote_predict = 
+	(x ->x <= 0.5 ? 0. : 1.).(sigmoid.(lr_banknote_test*lr_banknote_fit));
 
 # ╔═╡ 0f9dd1d1-1d11-4f22-9804-b46f83bf5977
 lr_banknote_accuracy = 
-	sum(lr_banknote_predict .== vec(Matrix(banknote_test)[:,end])) / size(banknote_test, 1);
+	sum(lr_banknote_predict .== vec(lr_banknote_test[:,end])) / size(lr_banknote_test, 1);
 
 # ╔═╡ 715d2091-a709-4559-abfd-0bbe86a70781
 md"From the last result we can see that the accuracy of the logistic regression model for this dataset is $(round(lr_banknote_accuracy, digits=3)*100)%."
@@ -401,15 +453,30 @@ md"From the last result we can see that the accuracy of the logistic regression 
 # ╔═╡ 2febf6b3-477f-44e1-a204-9f6a892fa1cd
 md"### Decision tree"
 
+# ╔═╡ 70ea2c2e-db41-463b-b955-db4b3e7d4dc6
+dt_banknote_train, dt_banknote_test = dataSplit(banknote_df);
+
 # ╔═╡ b6f9b431-82ff-44d0-b374-7e6a8ad401e2
-dt_banknote = DecisionTreeClassifier()
+dt_banknote = DecisionTreeClassifier();
 
 # ╔═╡ e3311988-cc8c-476d-8f6e-3a37ed1d48df
-dt_banknote_fit = DecisionTree.fit!(
+DecisionTree.fit!(
 	dt_banknote, 
-	Matrix(banknote_train)[:,1:end-1],
-	Matrix(banknote_train)[:,end]
-)
+	dt_banknote_train[:,1:end-1],
+	dt_banknote_train[:,end]
+);
+
+# ╔═╡ b479eb87-dcbe-4171-a03a-9153832d2139
+dt_banknote_prediction = DecisionTree.predict(
+	dt_banknote, dt_banknote_test[:,1:end-1]
+);
+
+# ╔═╡ f1a4ba68-9a48-49a9-8760-3521cab29896
+dt_banknote_accuracy = 
+	sum(dt_banknote_prediction .== vec(dt_banknote_test[:,end])) / size(dt_banknote_test, 1);
+
+# ╔═╡ c888d313-634b-4d5c-bc31-184f3efaa884
+md"From the last result we can see that the accuracy of the decision tree model for this dataset is $(round(dt_banknote_accuracy, digits=3)*100)%."
 
 # ╔═╡ e4f5b9d5-06b2-4296-9694-ef97ef0b2c5f
 md"## Database 2 - Occupancy Detection Data Set"
@@ -434,8 +501,6 @@ md"### Data processing"
 begin
 	occupancy_df = CSV.read("./datatraining.txt", DataFrame, header=true)
 	
-	replace!(occupancy_df[!, "Occupancy"], 0 => -1);
-
 	occupancy_date_df = deepcopy(occupancy_df)
 	
 	select!(occupancy_df, Not([:Column1, :date]))
@@ -445,66 +510,62 @@ begin
 end
 
 # ╔═╡ 01eb7746-2ab2-45b3-a602-904f930e1b23
-md"As before, we proceed to split the data into training and testing, with an 80/20 split. There are $(size(filter(row -> row.Occupancy == -1, occupancy_df))[1]) items labeled as 🔴, and $(size(filter(row -> row.Occupancy == 1, occupancy_df))[1]) items labeled as 🔵."
-
-# ╔═╡ 8004fe42-7406-4df9-bd27-1f9a7b4c8b07
-md"### SVM"
-
-# ╔═╡ eb3a06f5-4773-4353-a0e6-80038134d712
-occupancy_train, occupancy_test = MLJ.partition(
-	occupancy_df, 0.8, 
-	rng=123, 
-	shuffle=true);
+md"As before, we proceed to split the data into training and testing, with an 80/20 split. There are $(size(filter(row -> row.Occupancy == 0, occupancy_df))[1]) items labeled as 🔴, and $(size(filter(row -> row.Occupancy == 1, occupancy_df))[1]) items labeled as 🔵."
 
 # ╔═╡ 74ac32f4-e44b-4dea-b239-dc2ee39c734f
 begin
 	occupancy_test_raw = CSV.read("./datatest.txt", DataFrame, header=true)
 	select!(occupancy_test_raw, Not([:Column1, :date]))
-	replace!(occupancy_test_raw[!, "Occupancy"], 0 => -1);
-	occupancy_test
+
+	occupancy_test_raw
 end
 
 # ╔═╡ b305634d-e636-4fd1-b235-c9174b9c7b52
-md"Checking the provided testing data set, there are $(size(filter(row -> row.Occupancy == -1, occupancy_test_raw))[1]) items labeled as 🔴, and $(size(filter(row -> row.Occupancy == 1, occupancy_test_raw))[1]) items labeled as 🔵. However, we decided to sample the training data set to get the testing data, as we don't know if the provided testing data is included in the training data."
+md"Checking the provided testing data set, there are $(size(filter(row -> row.Occupancy == 0, occupancy_test_raw))[1]) items labeled as 🔴, and $(size(filter(row -> row.Occupancy == 1, occupancy_test_raw))[1]) items labeled as 🔵. However, we decided to sample the training data set to get the testing data, as we don't know if the provided testing data is included in the training data."
+
+# ╔═╡ 8004fe42-7406-4df9-bd27-1f9a7b4c8b07
+md"### SVM"
+
+# ╔═╡ f4551c02-98a1-4485-abc5-2991483ecdaa
+begin
+	svm_occupancy_df = deepcopy(occupancy_df)
+	replace!(svm_occupancy_df[!, "Occupancy"], 0 => -1)
+	svm_occupancy_train, svm_occupancy_test = dataSplit(svm_occupancy_df)
+end;
 
 # ╔═╡ 909791fe-b893-4597-aeb9-499019ebeca7
 begin
 	svm_occupancy = SVMRegular()
-	fitSVM(svm_occupancy, Matrix(occupancy_train))
+	fitSVM(svm_occupancy, svm_occupancy_train)
 end
 
 # ╔═╡ b375353a-0bd1-4bd0-a5f7-fe60ddad626b
-resultsSVM(svm_occupancy, Matrix(occupancy_test))
-
-# ╔═╡ 5b08928b-2290-41aa-8501-e8ce0bd9fce0
-svm_occupancy.w, svm_occupancy.b
+resultsSVM(svm_occupancy, svm_occupancy_test)
 
 # ╔═╡ 49873af1-4979-4962-a69a-9006af80bfa5
 md"### Logistic Regression"
 
 # ╔═╡ e9f4f135-588e-4679-96f2-0fb8a9bdf016
-begin
-	replace!(occupancy_train[!, "Occupancy"], -1 => 0)
-	replace!(occupancy_test[!, "Occupancy"], -1 => 0)
-end;
+lr_occupancy_train, lr_occupancy_test = dataSplit(occupancy_df);
 
 # ╔═╡ 3202ebba-fec1-4e7b-9bfb-624d247ab303
 lr_occupancy = LogisticRegression();
 
 # ╔═╡ 78616622-38af-4430-be01-da501e6f7c03
-lr_occupancy_fit = fit(lr_occupancy,
-	Matrix(occupancy_train)[:,1:end-1],
-	Matrix(occupancy_train)[:,end]
+lr_occupancy_fit = fit(
+	lr_occupancy,
+	lr_occupancy_train[:,1:end-1],
+	lr_occupancy_train[:,end]
 );
 
 # ╔═╡ 236c4739-f030-4f41-a49b-e7c5f1f2d343
-lr_occupancy_predict = (x ->x <= 0.5 ? 0. : 1.).(
-	sigmoid.(Matrix(occupancy_test)*lr_occupancy_fit)
+lr_occupancy_predict = (x -> x <= 0.5 ? 0. : 1.).(
+	sigmoid.(lr_occupancy_test*lr_occupancy_fit)
 );
 
 # ╔═╡ d9f501fe-5b9f-4158-8fa2-a9d6c0dbf3d4
 lr_occupancy_accuracy = 
-	sum(lr_occupancy_predict .== vec(Matrix(occupancy_test)[:,end])) / size(occupancy_test, 1);
+	sum(lr_occupancy_predict .== vec(lr_occupancy_test[:,end])) / size(lr_occupancy_test, 1);
 
 # ╔═╡ a1317f7f-a939-4421-b31f-775f1e943123
 md"From the last result we can see that the accuracy of the logistic regression model for this dataset is $(round(lr_occupancy_accuracy, digits=3)*100)%."
@@ -512,20 +573,47 @@ md"From the last result we can see that the accuracy of the logistic regression 
 # ╔═╡ 160b93db-1455-4319-99aa-db19780638aa
 md"### Decision tree"
 
+# ╔═╡ d1cbb5da-44db-40dd-b1b8-745d0ee77f82
+dt_occupancy_train, dt_occupancy_test = dataSplit(occupancy_df);
+
+# ╔═╡ 2cdb6e50-19ea-4fc1-9bc8-80a5fb30a528
+dt_occupancy = DecisionTreeClassifier();
+
+# ╔═╡ 3a847626-61a7-4d0e-87c1-e8676a6406f5
+DecisionTree.fit!(
+	dt_occupancy, 
+	dt_occupancy_train[:,1:end-1],
+	dt_occupancy_train[:,end]
+);
+
+# ╔═╡ 8c70a0bf-4346-4fd0-8d77-61008be3773b
+dt_occupancy_prediction = DecisionTree.predict(
+	dt_occupancy, dt_occupancy_test[:,1:end-1]
+);
+
+# ╔═╡ 1c53a451-b1dd-41b7-80cd-cb8da81737f1
+dt_occupancy_accuracy = sum(
+	dt_occupancy_prediction .== vec(dt_occupancy_test[:,end])
+) / size(dt_occupancy_test, 1);
+
+# ╔═╡ 806708b8-5e43-4591-9eeb-38db217c6a01
+md"From the last result we can see that the accuracy of the logistic regression model for this dataset is $(round(dt_occupancy_accuracy, digits=3)*100)%."
+
 # ╔═╡ 43a09104-5948-49ce-9a7b-7b938ffb26d3
-md"## Database 2 - Occupancy Detection Data Set (taking into account the date)"
+md"## Extra
+### Database 2 - Occupancy Detection Data Set (taking into account the date)"
 
 # ╔═╡ 52eb82fb-97b6-42be-a9bb-63a1f8624c45
 md"As a bonus, we will take into account the date and time on where the measures were taken. We proceed to split the date and time into the corresponding `Date`, `Hour`, `Minute`, and `Second` columns."
 
 # ╔═╡ 91ee8380-7d05-47c1-a88d-80e9b09195e3
-transform!(occupancy_date_df, 
+DataFrames.transform!(occupancy_date_df, 
 	:date => ByRow(x -> DateTime(x, dateformat"y-m-d H:M:S")) => :date);
 
 # ╔═╡ c3ba53fe-ccef-4dd1-88f4-72365c880603
 begin
 	
-	transform!(occupancy_date_df, 
+	DataFrames.transform!(occupancy_date_df, 
 		:date => ByRow(
 			x -> (
 				convert(AbstractFloat, Dates.day(x)), 
@@ -541,26 +629,44 @@ begin
 		[:Temperature, :Humidity, :Light, :CO2, :HumidityRatio, :Day, :Hour, :Minute, :Second, :Occupancy])
 end
 
+# ╔═╡ a7711e7b-288d-46c0-910d-51dc6cbc22e4
+replace!(occupancy_date_df[!, "Occupancy"], 0 => -1.);
+
 # ╔═╡ c036ff8b-267d-4673-8582-9b39ac4502ff
-occupancy_date_train, occupancy_date_test = partition(
-	occupancy_date_df, 0.8, 
-	rng=123, 
-	shuffle=true);
+occupancy_date_train, occupancy_date_test = dataSplit(occupancy_date_df);
 
 # ╔═╡ d2ebc549-3879-40c6-ad91-ccef317358ab
 begin
 	svm_occupancy_date = SVMRegular()
-	fitSVM(svm_occupancy_date, Matrix(occupancy_date_train))
+	fitSVM(svm_occupancy_date, occupancy_date_train)
 end
 
 # ╔═╡ 8701c933-08fb-48f1-bb62-cdcf94c4ba4f
-resultsSVM(svm_occupancy_date, Matrix(occupancy_date_test))
+resultsSVM(svm_occupancy_date, occupancy_date_test)
 
 # ╔═╡ 6004e00c-3a31-429b-bfe7-4bce0b8a15bb
 md"Comparing this to the results of the previus testing (without dates), we can see the accuracy changed in $(round(abs(94.66-94.84), digits=3))% in favor of this experiment using dates, so we can neglect them and use the original dataset without significant difference."
 
+# ╔═╡ fdef7b51-3285-4388-ba09-91a4a6f22bd7
+md"## Results
+*Provide quantitative evidence for generalization using the provided datasets.*
+- As explained in the SVM implementation section, when implementing regularization we are looking to minimize the empirical error of the sample, *i.e*, minimizing $\frac{1}{N}\sum_{i=1}^{N} L_{\mathbf{w}, b}(\mathbf{x}_I, y_i)$. This, added to the accuracy results gives us a percentage for generalization, as we divided data into training and testing, so we are **not** calculating the accuracy over the training data.
+
+*Are these datasets linearly separable?*
+- As neither of the accuracy test made with both datasets yielded 100% of accuracy with the SVM models, we can say that datasets are **not** linearly separable. However, the *Occupancy DEtection Data Set* in closer to being linearly separable.
+
+*Are these datasets randomly chosen?*
+-
+
+*Is the sample size enough to guarantee generalization?*
+-
+"
+
 # ╔═╡ aaa21bda-3d18-4785-8166-f73be94a85eb
-md"## References"
+md"## References
+
+1) YouTube. (2022, September 20). *How to implement SVM (Support Vector Machine) from scratch with Python*. Retrieved March 5, 2023, from <https://www.youtube.com/watch?v=T9UcK-TxQGw>.
+"
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -2176,26 +2282,25 @@ version = "1.4.1+0"
 # ╔═╡ Cell order:
 # ╟─dff3c71e-2ed4-4663-8441-e10b1b2f76d6
 # ╟─9786047f-c383-4269-af6f-90039f3caf74
-# ╟─942ad83e-fdd4-4ac2-b28f-6c13fdef1746
-# ╟─d54bb0d6-d324-4a11-93c3-f472f901a8ea
+# ╟─958e8517-f147-4a61-a3c1-3335f8e8c36d
 # ╠═02ef7e5c-0858-4da4-af5e-1dcc6060c6ef
-# ╠═c14eacc2-f89f-4866-b835-7a063c5e73a8
+# ╟─fbd49b80-c4e9-4b8d-83d7-ac3c3c958a38
+# ╟─db362343-b3be-4a2d-b4b0-002417560b3a
+# ╠═48a07b04-52e6-4dbe-beb5-5b45e148136e
+# ╟─ab3f0acd-d06f-4b6b-8a09-96fd6cf9fb24
+# ╠═bafb0ac9-6d68-4cb8-b529-715553b88425
 # ╟─00540701-8536-4603-a337-05ca3df89ad7
-# ╟─bfbfafe6-4136-4273-aacb-789baaa72fa0
 # ╟─5837be60-44d6-4219-b0b3-940de66337de
-# ╟─5c27e248-2405-46e0-9822-9ce8ccb8e793
 # ╠═b5645969-e265-46d5-b676-1404b1b9d69c
 # ╟─6519e8ad-ea5c-428a-90be-a81ef87195c0
+# ╟─9ee89705-ad5a-465a-b704-2dab939c3ed7
 # ╠═a587a40c-582b-48fc-a3bf-aed21c9c5875
 # ╟─72484660-f9ea-4be1-bc76-f15102cc2515
-# ╟─73bcf094-743c-4232-a927-97b5dd372ec5
 # ╠═d5537edd-28ec-46b0-b9d9-f347b772ccb2
 # ╠═b4206d72-52ab-44ec-8336-027762356df7
 # ╟─b9e43bd4-6d88-4b08-8a3a-fabef87a0ece
-# ╟─4c9eaa88-0711-4fd4-95a9-5574c294d491
 # ╠═53fb9803-ae4d-47ad-b1cd-d354d119afda
 # ╟─e761d48f-6b04-4c8d-be81-18edc017e95e
-# ╟─5249a818-ef10-4e5a-b1c8-b78dd105390d
 # ╟─e1bcc629-1c9c-4d8e-90f5-ada601350fef
 # ╠═4600aa8f-b941-4939-97a2-ff8da9d27e8d
 # ╠═904d7e4d-9ca1-4d36-b7fd-cfe0793d77e1
@@ -2214,25 +2319,26 @@ version = "1.4.1+0"
 # ╟─afbac097-eac1-4b9b-a9d3-30783f84be24
 # ╟─333c9e3b-6f1d-4993-9368-190c8527a86d
 # ╠═c4165e26-7fd6-4833-9c09-e28b7be27b01
-# ╟─94bb684a-81d8-4255-887b-4f00edee3d0d
 # ╠═c590c041-dd90-4f3d-895f-ff0607a0d0ee
-# ╟─747f5398-9f10-47f7-b3b1-17c0bbe0125f
-# ╠═c879a11f-9796-4f53-9aef-f5069ea57453
 # ╟─d7820f71-2a92-4693-9dc4-fcfd5ecb05a5
+# ╟─94bb684a-81d8-4255-887b-4f00edee3d0d
+# ╠═c879a11f-9796-4f53-9aef-f5069ea57453
 # ╠═4e6cf955-5d1b-4eff-8243-e3826650ca6b
-# ╠═33e0dc60-794f-4118-a979-ec7ee19399c3
 # ╠═de6c5c60-e2d5-4eef-87c0-facd98c447cd
 # ╟─8bd3dabc-3a37-477c-ae71-dbf34bd16c4b
-# ╠═bafb0ac9-6d68-4cb8-b529-715553b88425
-# ╠═6a072366-306a-4669-8d34-a1450dfb7cb9
+# ╠═d31c977b-408b-4a97-89df-9f2a2cce1ae6
 # ╠═8705844f-7334-4fd9-8787-4a3836b1690a
 # ╠═9b6d305e-efec-48f5-8981-fdcfea9052bd
 # ╠═77c24ac4-b49e-4469-9337-a8b0b3543316
 # ╠═0f9dd1d1-1d11-4f22-9804-b46f83bf5977
 # ╟─715d2091-a709-4559-abfd-0bbe86a70781
 # ╟─2febf6b3-477f-44e1-a204-9f6a892fa1cd
+# ╠═70ea2c2e-db41-463b-b955-db4b3e7d4dc6
 # ╠═b6f9b431-82ff-44d0-b374-7e6a8ad401e2
 # ╠═e3311988-cc8c-476d-8f6e-3a37ed1d48df
+# ╠═b479eb87-dcbe-4171-a03a-9153832d2139
+# ╠═f1a4ba68-9a48-49a9-8760-3521cab29896
+# ╟─c888d313-634b-4d5c-bc31-184f3efaa884
 # ╟─e4f5b9d5-06b2-4296-9694-ef97ef0b2c5f
 # ╟─7886a080-ef8f-4bf0-9f5c-045e1636eece
 # ╟─7e05295f-3e1e-4800-a989-ae81f7b59de0
@@ -2242,10 +2348,9 @@ version = "1.4.1+0"
 # ╠═74ac32f4-e44b-4dea-b239-dc2ee39c734f
 # ╟─b305634d-e636-4fd1-b235-c9174b9c7b52
 # ╟─8004fe42-7406-4df9-bd27-1f9a7b4c8b07
-# ╠═eb3a06f5-4773-4353-a0e6-80038134d712
+# ╠═f4551c02-98a1-4485-abc5-2991483ecdaa
 # ╠═909791fe-b893-4597-aeb9-499019ebeca7
 # ╠═b375353a-0bd1-4bd0-a5f7-fe60ddad626b
-# ╠═5b08928b-2290-41aa-8501-e8ce0bd9fce0
 # ╟─49873af1-4979-4962-a69a-9006af80bfa5
 # ╠═e9f4f135-588e-4679-96f2-0fb8a9bdf016
 # ╠═3202ebba-fec1-4e7b-9bfb-624d247ab303
@@ -2254,14 +2359,22 @@ version = "1.4.1+0"
 # ╠═d9f501fe-5b9f-4158-8fa2-a9d6c0dbf3d4
 # ╟─a1317f7f-a939-4421-b31f-775f1e943123
 # ╟─160b93db-1455-4319-99aa-db19780638aa
+# ╠═d1cbb5da-44db-40dd-b1b8-745d0ee77f82
+# ╠═2cdb6e50-19ea-4fc1-9bc8-80a5fb30a528
+# ╠═3a847626-61a7-4d0e-87c1-e8676a6406f5
+# ╠═8c70a0bf-4346-4fd0-8d77-61008be3773b
+# ╠═1c53a451-b1dd-41b7-80cd-cb8da81737f1
+# ╟─806708b8-5e43-4591-9eeb-38db217c6a01
 # ╟─43a09104-5948-49ce-9a7b-7b938ffb26d3
 # ╟─52eb82fb-97b6-42be-a9bb-63a1f8624c45
 # ╠═91ee8380-7d05-47c1-a88d-80e9b09195e3
 # ╠═c3ba53fe-ccef-4dd1-88f4-72365c880603
+# ╠═a7711e7b-288d-46c0-910d-51dc6cbc22e4
 # ╠═c036ff8b-267d-4673-8582-9b39ac4502ff
 # ╠═d2ebc549-3879-40c6-ad91-ccef317358ab
 # ╠═8701c933-08fb-48f1-bb62-cdcf94c4ba4f
 # ╟─6004e00c-3a31-429b-bfe7-4bce0b8a15bb
+# ╟─fdef7b51-3285-4388-ba09-91a4a6f22bd7
 # ╟─aaa21bda-3d18-4785-8166-f73be94a85eb
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
