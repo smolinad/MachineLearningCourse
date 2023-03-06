@@ -3,4 +3,4 @@
 Sebastian Molina  \
 [smolinad@unal.edu.co](mailto:smolinad@unal.edu.co)
 
-- Assignment #1 - SVM: Pluto Interactive Notebook (Julia) [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/smolinad/Machine-Learning/main?labpath=https%3A%2F%2Fgithub.com%2Fsmolinad%2FMachine-Learning%2Fblob%2Fmain%2FAssignment%25201%2FML1C.jl)
+- Assignment #1 - SVM: Pluto Interactive Notebook (Julia) [![Binder](https://hub.gke2.mybinder.org/user/fonsp-pluto-on-binder-2oolsvr5/pluto/edit?id=4e219618-bbd2-11ed-2503-7fbc8286d3e4&token=Yu6QGTbdTXiHwWp8kE1hyw)
