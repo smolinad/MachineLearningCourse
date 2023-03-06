@@ -87,7 +87,7 @@ mutable struct SVMRegular
 	num_features::Int
 	
 	function SVMRegular()
-		new([], 0.0, 0.001, 0.01, 1000, 0)
+		new([], 0.0, 0.001, 0.01, 5000, 0)
 	end
 end
 
@@ -96,8 +96,6 @@ md"### `fit` method"
 
 # ╔═╡ 9ee89705-ad5a-465a-b704-2dab939c3ed7
 md"
-#### Problem
-
 The goal of the Support Vector Machine (SVM) algorithm is to find a decision boundary hyperplane $\mathbf{w} \cdot \mathbf{x} - b = 0$ which separates the data into two classes, while maximizing the distance between the two possible clusters of input data. For a given input data vector $\mathbf{x}_i$ and its corresponding label $y_i$, this problem is designed by the following constraints:
 
 $\begin{cases}
@@ -186,7 +184,7 @@ function resultsSVM(svm::SVMRegular, data)
 	result = Matrix{Float64}(undef, 0, 2)
 	
 	for row in eachrow(data)
-		prediction = sign(dot(row[1: svm.num_features], svm.w) + svm.b)
+		prediction = sign(dot(row[1: svm.num_features], svm.w) - svm.b)
 		result = vcat(result, [prediction last(row)])
 	end
 
@@ -374,12 +372,15 @@ md"## Database 1 - Banknote Authentication Data Set"
 
 # ╔═╡ eb46ddaf-4cb2-4cb6-a187-49e3d27e48f0
 md"### Feature Description
+As explained in [Discrete Wavelet Transform](https://www.sciencedirect.com/topics/mathematics/discrete-wavelet-transform), the discrete wavelet transform (DWT) is a transform that decomposes a given signal into a number of sets, where each set is a time series of coefficients describing the time evolution of the signal in the corresponding frequency band.
 
-- *Variance of Wavelet Transformed image (continuous)*:
-- *Skewness of Wavelet Transformed image (continuous)*:
-- *Kurtosis of Wavelet Transformed image (continuous)*:
-- *Entropy of image (continuous)*:
-- *Class (Label)*:"
+The features present in the given dataset are the second, third and fourth moments of the Wavelet transform over the images, the (Shannon) entropy of the image, and the label, respectively:
+- *Variance of Wavelet Transformed image (continuous)*
+- *Skewness of Wavelet Transformed image (continuous)*
+- *Kurtosis of Wavelet Transformed image (continuous)*
+- *Entropy of image (continuous)*
+- *Class (Label)*
+"
 
 # ╔═╡ afbac097-eac1-4b9b-a9d3-30783f84be24
 md"### Data processing"
@@ -559,7 +560,7 @@ lr_occupancy_fit = fit(
 );
 
 # ╔═╡ 236c4739-f030-4f41-a49b-e7c5f1f2d343
-lr_occupancy_predict = (x -> x <= 0.5 ? 0. : 1.).(
+lr_occupancy_predict = (x -> (x <= 0.5 ? 0. : 1.)).(
 	sigmoid.(lr_occupancy_test*lr_occupancy_fit)
 );
 
@@ -653,7 +654,7 @@ md"## Results
 - As explained in the SVM implementation section, when implementing regularization we are looking to minimize the empirical error of the sample, *i.e*, minimizing $\frac{1}{N}\sum_{i=1}^{N} L_{\mathbf{w}, b}(\mathbf{x}_I, y_i)$. This, added to the accuracy results gives us a percentage for generalization, as we divided data into training and testing, so we are **not** calculating the accuracy over the training data.
 
 *Are these datasets linearly separable?*
-- As neither of the accuracy test made with both datasets yielded 100% of accuracy with the SVM models, we can say that datasets are **not** linearly separable. However, the *Occupancy DEtection Data Set* in closer to being linearly separable.
+- Accounting for noise in the datasets, we can say that datasets are linearly separable, as prediction using the SVM models yielded near 100% accuracy.
 
 *Are these datasets randomly chosen?*
 -
