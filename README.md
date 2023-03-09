@@ -20,5 +20,7 @@ julia> Pluto.run()
 
 6) The notebook will automatically install all the libraries used in the notebook, in an independent environment!
 
+Alternatively, you can use the following links to a Binder repository, where you can run the notebook online. It takes from 2 to 8 minutes to load.
+
 ## Assignments:
 - [**Assignment #1 - SVM**](https://binder.plutojl.org/v0.19.12/open?url=https%253A%252F%252Fraw.githubusercontent.com%252Fsmolinad%252FMachine-Learning%252Fmain%252FAssignment%2525201%252Fassignment1.jl)
