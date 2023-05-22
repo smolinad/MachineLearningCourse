@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.9
+# v0.19.23
 
 #> [frontmatter]
 #> title = "Code Assignment #1 - Binary Classification"
@@ -33,6 +33,11 @@ md"# Code Assignment \# 1 - Binary Classification
 Sebastian Molina  \
 [smolinad@unal.edu.co](mailto:smolinad@unal.edu.co)"
 
+# ╔═╡ 8fb0a34b-80b0-4862-ae94-0a777e430ff2
+md"
+- Make all the models compete.
+- Partition the datasets into train, test, eval."
+
 # ╔═╡ 9786047f-c383-4269-af6f-90039f3caf74
 md"## Problem Identification
 
@@ -61,6 +66,22 @@ function dataSplit(db, toMatrix=true)
 		Matrix(train), Matrix(test)
 	else
 		train, test
+	end
+end;
+
+# ╔═╡ 604677b8-ec66-4137-ab47-0121874457bb
+function dataSplit2(db, toMatrix=true, shuffle=true)
+	train, val, test = MLJ.partition(
+		db, 
+		0.7, 
+		0.2, 
+		rng=123, 
+		shuffle=shuffle)
+	
+	if toMatrix
+		Matrix(train), Matrix(val), Matrix(test)
+	else
+		train, val, test
 	end
 end;
 
@@ -410,42 +431,49 @@ begin
 	banknote_df
 end
 
+# ╔═╡ 72268cf2-9a1c-40e3-a5e7-e3ac7851dc70
+md"#### Data split
+Here we split the data into training, validation and testing, leaving the resulting split as `DataFrames`.
+"
+
+# ╔═╡ e95f78d2-9960-4c6b-837d-4c1af186bcb0
+begin
+	banknote_train, banknote_val, banknote_test = dataSplit2(banknote_df, false)
+end;
+
 # ╔═╡ d7820f71-2a92-4693-9dc4-fcfd5ecb05a5
 md"### SVM"
 
 # ╔═╡ 94bb684a-81d8-4255-887b-4f00edee3d0d
-md"Here, we change the label $0$ to $-1$, as needed by the SVM algorithm. Observe that the label is in the fifth column, and in general, we will format data so that the label column is the $n$-th column. Next, we proceed to split the data into training and testing, with an 80/20 split. There are $(size(filter(row -> row.Label == 0, banknote_df))[1]) items labeled as 🔴, and $(size(filter(row -> row.Label == 1, banknote_df))[1]) items labeled as 🔵."
+md"Here, we change the label $0$ to $-1$, as needed by the SVM algorithm. Observe that the label is in the fifth column, and in general, we will format data so that the label column is the $n$-th column. Next, we proceed to split the data into training and testing, with an 70/20/10 split. There are $(size(filter(row -> row.Label == 0, banknote_df))[1]) items labeled as 🔴, and $(size(filter(row -> row.Label == 1, banknote_df))[1]) items labeled as 🔵."
 
-# ╔═╡ c879a11f-9796-4f53-9aef-f5069ea57453
+# ╔═╡ f78da47b-15db-474b-86b7-163378bc6e95
 begin
-	svm_banknote_df = deepcopy(banknote_df)
-	replace!(svm_banknote_df[!, "Label"], 0 => -1)
-	
-	svm_banknote_train, svm_banknote_test = dataSplit(svm_banknote_df)
+	svm_banknote_train = deepcopy(banknote_train)
+	svm_banknote_val = deepcopy(banknote_val)
+	svm_banknote_test = deepcopy(banknote_test)
+
+	replace!(svm_banknote_train[!, "Label"], 0 => -1)
+	replace!(svm_banknote_val[!, "Label"], 0 => -1)
+	replace!(svm_banknote_test[!, "Label"], 0 => -1)
 end;
 
 # ╔═╡ 4e6cf955-5d1b-4eff-8243-e3826650ca6b
 begin
 	svm_banknote = SVMRegular()
-	fitSVM(svm_banknote, svm_banknote_train)
+	fitSVM(svm_banknote, Matrix(svm_banknote_train))
 end
 
 # ╔═╡ de6c5c60-e2d5-4eef-87c0-facd98c447cd
-resultsSVM(svm_banknote, svm_banknote_test)
+resultsSVM(svm_banknote, Matrix(svm_banknote_val))
 
 # ╔═╡ 8bd3dabc-3a37-477c-ae71-dbf34bd16c4b
 md"### Logistic Regression"
 
-# ╔═╡ 724dbf8d-2dbf-4b66-b920-a1781657971c
-md"The following steps will be replicated in the second database. First, we split the data into training and testing, leaving the resulting split as `DataFrames`."
-
-# ╔═╡ d31c977b-408b-4a97-89df-9f2a2cce1ae6
-lr_banknote_train, lr_banknote_test = dataSplit(banknote_df, false);
-
 # ╔═╡ cbf222b6-3cac-40b6-9d75-fe0ba7a0058a
 begin
 	fm_banknote = @formula(Label ~ Variance + Skewness + Kurtosis + Entropy + Label)
-	lr_banknote = glm(fm_banknote, lr_banknote_train, Binomial(), ProbitLink())
+	lr_banknote = glm(fm_banknote, banknote_train, Binomial(), ProbitLink())
 end;
 
 # ╔═╡ 49a33464-8e04-4238-ba7c-d16dc1acf101
@@ -453,14 +481,14 @@ md"Here, we apply a threshold function to each value of the prediction, so the p
 
 # ╔═╡ 6c1290ec-cccb-4a99-b2d9-9843cb1a56d2
 lr_banknote_predict = 
-	(x ->x < 0.5 ? 0. : 1.).(GLM.predict(lr_banknote, lr_banknote_test));
+	(x ->x < 0.5 ? 0. : 1.).(GLM.predict(lr_banknote, banknote_val));
 
 # ╔═╡ 9c33577c-cb72-47c8-b3f9-11a9ee2d0536
 md"Finally, we calculate the accuracy by comparing the prediction and the test data labels, and dividing the number of correct comparisons with the testing data size. "
 
 # ╔═╡ 4984ee85-31fe-43f1-a606-d597cb9d58b2
 lr_banknote_accuracy = 
-	sum(lr_banknote_predict .== vec(lr_banknote_test[:,end])) / size(lr_banknote_test, 1);
+	sum(lr_banknote_predict .== vec(banknote_val[:,end])) / size(banknote_val, 1);
 
 # ╔═╡ 715d2091-a709-4559-abfd-0bbe86a70781
 md"From the last result we can see that the accuracy of the logistic regression model for this dataset is $(lr_banknote_accuracy*100)%."
@@ -471,30 +499,32 @@ md"### Decision tree"
 # ╔═╡ 9458e108-925a-45f5-8669-5ad735859b4e
 md"As with the previous models, we split the data, then we fit the model, and finally predict with the model to get an accuracy statistic."
 
-# ╔═╡ 70ea2c2e-db41-463b-b955-db4b3e7d4dc6
-dt_banknote_train, dt_banknote_test = dataSplit(banknote_df);
-
 # ╔═╡ b6f9b431-82ff-44d0-b374-7e6a8ad401e2
 dt_banknote = DecisionTreeClassifier();
 
 # ╔═╡ e3311988-cc8c-476d-8f6e-3a37ed1d48df
 DecisionTree.fit!(
 	dt_banknote, 
-	dt_banknote_train[:,1:end-1],
-	dt_banknote_train[:,end]
+	Matrix(banknote_train)[:,1:end-1],
+	Matrix(banknote_train)[:,end]
 );
 
 # ╔═╡ b479eb87-dcbe-4171-a03a-9153832d2139
 dt_banknote_prediction = DecisionTree.predict(
-	dt_banknote, dt_banknote_test[:,1:end-1]
+	dt_banknote, Matrix(banknote_val)[:,1:end-1]
 );
 
 # ╔═╡ f1a4ba68-9a48-49a9-8760-3521cab29896
 dt_banknote_accuracy = 
-	sum(dt_banknote_prediction .== vec(dt_banknote_test[:,end])) / size(dt_banknote_test, 1);
+	sum(dt_banknote_prediction .== vec(Matrix(banknote_val)[:,end])) / size(banknote_val, 1);
 
 # ╔═╡ c888d313-634b-4d5c-bc31-184f3efaa884
 md"From the last result we can see that the accuracy of the decision tree model for this dataset is $(round(dt_banknote_accuracy, digits=3)*100)%."
+
+# ╔═╡ 6df86af7-2804-4961-94da-cffed0410125
+md"### Testing
+
+From the previous results, the model with the best accuracy was the linear regression. Then we proceed to test the model."
 
 # ╔═╡ e4f5b9d5-06b2-4296-9694-ef97ef0b2c5f
 md"## Database 2 - Occupancy Detection Data Set"
@@ -613,6 +643,9 @@ dt_occupancy_accuracy = sum(
 # ╔═╡ 806708b8-5e43-4591-9eeb-38db217c6a01
 md"From the last result we can see that the accuracy of the logistic regression model for this dataset is $(round(dt_occupancy_accuracy, digits=3)*100)%."
 
+# ╔═╡ a07b9a55-a745-4c54-9393-d4b8752475a2
+md"# DELETE FROM HERE!!!!!!!"
+
 # ╔═╡ 43a09104-5948-49ce-9a7b-7b938ffb26d3
 md"## Extra
 ### Database 2 - Occupancy Detection Data Set (taking into account the date)"
@@ -661,6 +694,9 @@ resultsSVM(svm_occupancy_date, occupancy_date_test)
 
 # ╔═╡ 6004e00c-3a31-429b-bfe7-4bce0b8a15bb
 md"Comparing this to the results of the previus testing (without dates), we can see the accuracy changed in $(round(abs(92.3-96.1), digits=3))% in favor of this experiment using dates, so we can neglect them and use the original dataset without significant difference."
+
+# ╔═╡ 14822bc5-0827-4c8b-91db-6d057fae8e33
+md"# STOOOOP!!!!!!"
 
 # ╔═╡ fdef7b51-3285-4388-ba09-91a4a6f22bd7
 md"## Results
@@ -712,9 +748,9 @@ StatsPlots = "~0.15.4"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.1"
+julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "8e3fa29c1c49bdd55549cbd5022aab98ccd91622"
+project_hash = "b0b7c4ad1d5e257397349a578df9c2799bf32460"
 
 [[deps.ARFFFiles]]
 deps = ["CategoricalArrays", "Dates", "Parsers", "Tables"]
@@ -895,7 +931,7 @@ version = "4.6.0"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "0.5.2+0"
+version = "1.0.1+0"
 
 [[deps.ComputationalResources]]
 git-tree-sha1 = "52cb3ec90e8a8bea0e62e275ba577ad0f74821f7"
@@ -1989,7 +2025,7 @@ version = "1.10.0"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.0"
+version = "1.10.1"
 
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
@@ -2315,12 +2351,14 @@ version = "1.4.1+0"
 
 # ╔═╡ Cell order:
 # ╟─dff3c71e-2ed4-4663-8441-e10b1b2f76d6
+# ╟─8fb0a34b-80b0-4862-ae94-0a777e430ff2
 # ╟─9786047f-c383-4269-af6f-90039f3caf74
 # ╟─958e8517-f147-4a61-a3c1-3335f8e8c36d
 # ╠═02ef7e5c-0858-4da4-af5e-1dcc6060c6ef
 # ╟─fbd49b80-c4e9-4b8d-83d7-ac3c3c958a38
 # ╟─db362343-b3be-4a2d-b4b0-002417560b3a
 # ╠═48a07b04-52e6-4dbe-beb5-5b45e148136e
+# ╠═604677b8-ec66-4137-ab47-0121874457bb
 # ╟─00540701-8536-4603-a337-05ca3df89ad7
 # ╟─5837be60-44d6-4219-b0b3-940de66337de
 # ╠═b5645969-e265-46d5-b676-1404b1b9d69c
@@ -2354,14 +2392,14 @@ version = "1.4.1+0"
 # ╟─333c9e3b-6f1d-4993-9368-190c8527a86d
 # ╠═c4165e26-7fd6-4833-9c09-e28b7be27b01
 # ╠═c590c041-dd90-4f3d-895f-ff0607a0d0ee
+# ╟─72268cf2-9a1c-40e3-a5e7-e3ac7851dc70
+# ╠═e95f78d2-9960-4c6b-837d-4c1af186bcb0
 # ╟─d7820f71-2a92-4693-9dc4-fcfd5ecb05a5
 # ╟─94bb684a-81d8-4255-887b-4f00edee3d0d
-# ╠═c879a11f-9796-4f53-9aef-f5069ea57453
+# ╠═f78da47b-15db-474b-86b7-163378bc6e95
 # ╠═4e6cf955-5d1b-4eff-8243-e3826650ca6b
 # ╠═de6c5c60-e2d5-4eef-87c0-facd98c447cd
 # ╟─8bd3dabc-3a37-477c-ae71-dbf34bd16c4b
-# ╟─724dbf8d-2dbf-4b66-b920-a1781657971c
-# ╠═d31c977b-408b-4a97-89df-9f2a2cce1ae6
 # ╠═cbf222b6-3cac-40b6-9d75-fe0ba7a0058a
 # ╟─49a33464-8e04-4238-ba7c-d16dc1acf101
 # ╠═6c1290ec-cccb-4a99-b2d9-9843cb1a56d2
@@ -2370,12 +2408,12 @@ version = "1.4.1+0"
 # ╟─715d2091-a709-4559-abfd-0bbe86a70781
 # ╟─2febf6b3-477f-44e1-a204-9f6a892fa1cd
 # ╟─9458e108-925a-45f5-8669-5ad735859b4e
-# ╠═70ea2c2e-db41-463b-b955-db4b3e7d4dc6
 # ╠═b6f9b431-82ff-44d0-b374-7e6a8ad401e2
 # ╠═e3311988-cc8c-476d-8f6e-3a37ed1d48df
 # ╠═b479eb87-dcbe-4171-a03a-9153832d2139
 # ╠═f1a4ba68-9a48-49a9-8760-3521cab29896
 # ╟─c888d313-634b-4d5c-bc31-184f3efaa884
+# ╟─6df86af7-2804-4961-94da-cffed0410125
 # ╟─e4f5b9d5-06b2-4296-9694-ef97ef0b2c5f
 # ╟─7886a080-ef8f-4bf0-9f5c-045e1636eece
 # ╟─7e05295f-3e1e-4800-a989-ae81f7b59de0
@@ -2401,6 +2439,7 @@ version = "1.4.1+0"
 # ╠═8c70a0bf-4346-4fd0-8d77-61008be3773b
 # ╠═1c53a451-b1dd-41b7-80cd-cb8da81737f1
 # ╟─806708b8-5e43-4591-9eeb-38db217c6a01
+# ╟─a07b9a55-a745-4c54-9393-d4b8752475a2
 # ╟─43a09104-5948-49ce-9a7b-7b938ffb26d3
 # ╟─52eb82fb-97b6-42be-a9bb-63a1f8624c45
 # ╠═91ee8380-7d05-47c1-a88d-80e9b09195e3
@@ -2410,6 +2449,7 @@ version = "1.4.1+0"
 # ╠═d2ebc549-3879-40c6-ad91-ccef317358ab
 # ╠═8701c933-08fb-48f1-bb62-cdcf94c4ba4f
 # ╟─6004e00c-3a31-429b-bfe7-4bce0b8a15bb
+# ╟─14822bc5-0827-4c8b-91db-6d057fae8e33
 # ╟─fdef7b51-3285-4388-ba09-91a4a6f22bd7
 # ╟─aaa21bda-3d18-4785-8166-f73be94a85eb
 # ╟─00000000-0000-0000-0000-000000000001
