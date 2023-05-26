@@ -1,6 +1,9 @@
 ### A Pluto.jl notebook ###
 # v0.19.23
 
+#> [frontmatter]
+#> title = "Exercise 1.10 - Learning From Data"
+
 using Markdown
 using InteractiveUtils
 
