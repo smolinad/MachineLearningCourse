@@ -1,6 +1,9 @@
 ### A Pluto.jl notebook ###
 # v0.19.23
 
+#> [frontmatter]
+#> title = "Code Assignment #2 - Eigenfaces"
+
 using Markdown
 using InteractiveUtils
 
