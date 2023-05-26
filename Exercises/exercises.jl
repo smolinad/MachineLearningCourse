@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.9
+# v0.19.23
 
 using Markdown
 using InteractiveUtils
@@ -8,6 +8,7 @@ using InteractiveUtils
 begin
 	using Random
 	using Plots
+	using Statistics 
 end
 
 # ╔═╡ 51621ea8-a7d4-4494-a849-ea5bfc88d3ee
@@ -17,7 +18,14 @@ rng = Xoshiro(1234);
 flip_coins(rng, num_coins) = (x -> x > 0.5 ? 1 : 0).(rand(rng, num_coins)) 
 
 # ╔═╡ 89ac2822-c05c-4219-ade9-a331f60a071e
-hoeffding_bound(eps) = 2 * exp(-2 * eps^2 * N)
+hoeffding_bound(eps, N) = 2 * exp(-2 * eps^2 * N)
+
+# ╔═╡ 527aa2c2-e5f0-4f02-98a9-f76acdd17183
+begin
+	num_coins = 1000
+	num_flips = 10
+	num_runs = 100000
+end;
 
 # ╔═╡ 4560f6dc-8b85-470f-bc61-a224aa4277f6
 function flip_n_times(num_coins, num_flips)
@@ -27,7 +35,7 @@ function flip_n_times(num_coins, num_flips)
 		heads_sum += flip_coins(rng, num_coins)
 	end
 
-	freq_heads = heads_sum / num_flips
+	freq_heads = heads_sum / (num_flips * 100)
 	
 	c_rand = rand(rng, 1:num_coins)
 	c_min = argmin(heads_sum)
@@ -40,55 +48,123 @@ function flip_n_times(num_coins, num_flips)
 	
 end
 
+# ╔═╡ 6dc0d55f-e746-4a16-a87c-99be81327f31
+md"#### 10) a."
+
 # ╔═╡ e8549d6c-6e86-403c-b817-1b6ed1e5223f
-flip_n_times(1000, 10)
+flip_n_times(num_coins, num_flips)
+
+# ╔═╡ b5dc6c33-3015-4e2c-b3df-80fa99bb838c
+md"#### 10) b."
 
 # ╔═╡ c0d0ab49-4729-43b1-a7b5-ed69b76db1b6
 begin
 	v_first_hist = []
 	v_rand_hist = []
 	v_min_hist = []
-	
-	for runs in 1:10^5
-		vf, vr, vm = flip_n_times(1000, 10)
+
+	for runs in 1:num_runs
+		vf, vr, vm = flip_n_times(num_coins, num_flips)
 		push!(v_first_hist, vf)
 		push!(v_rand_hist, vr)
 		push!(v_min_hist, vm)
 	end
+	
 end
 
 # ╔═╡ cbc43eca-ff80-4c22-ba4a-eb5cbaff1613
 begin
-	p = plot(layout=grid(1, 3), legend=false)
+	p = plot(layout=grid(1, 3), legend=false, fontfamily=("times"))
 	
 	histogram!(
 		p[1], 
-		v_first_hist/100, 
-		bins=10, title="First coin", titlefont=font(10), xrotation = 90 
+		v_first_hist, 
+		xlims = [0.41, Inf], ylims = [0, Inf],
+		framestyle=:semi,
+		bins=11, title="First coin", 
+		color="#3A7FBB",
+		xrotation = 90 
 	)
 	
 	histogram!(
 		p[2], 
-		v_rand_hist/100, 
-		bins=10, title="Random coin", titlefont=font(10), xrotation = 90 
+		v_rand_hist, 
+		xlims = [0.41, Inf], ylims = [0, Inf],
+		framestyle=:semi,
+		bins=11, title="Random coin", 
+		color="#3A7FBB",
+		xrotation = 90 
 	)
 	
 	histogram!(
 		p[3], 
-		v_min_hist/100, 
-		label="vm", bins=10, 
-		title="Min heads coin", titlefont=font(10), xrotation = 90 
+		v_min_hist, 
+		label="vm", bins=11, 
+		xlims = [0.41, Inf], ylims = [0, Inf],
+		framestyle=:semi,
+		color="#3A7FBB",
+		title="Min heads coin", 
+		xrotation = 90 
 	)
 	
-	
-	plot!()
 end
+
+# ╔═╡ d3a43ddd-ae54-4b22-bc98-84e45026ed93
+savefig(p, "histogram.pdf")
+
+# ╔═╡ c58ba23b-de1c-42fe-9580-fe28f8e60902
+md"#### 10) c."
+
+# ╔═╡ 214fc5b1-cc76-4760-8f43-913a6c476eba
+begin
+	
+	x = range(0, .075, length=1000)
+
+	## |nu - mu|
+	v_first_d = abs.(v_first_hist .- .5)
+	v_rand_d = abs.(v_rand_hist .- .50)
+	v_min_d = abs.(v_min_hist .- .50)
+
+	p1, prand, pmin = [], [], []
+
+	for idx in 1:size(x)[1]
+	    eps = x[idx]
+		
+	    push!(p1, count(v -> v > eps, v_first_d)/num_runs)
+	    push!(prand, count(v -> v > eps, v_rand_d)/num_runs)
+	    push!(pmin, count(v -> v > eps, v_min_d)/num_runs)
+	end
+	
+end;
+
+# ╔═╡ f55c7ce8-44d3-4905-bbb1-b23f7985674a
+begin
+	p_hoeff = plot(
+		legend=:topright, 
+		framestyle=:origin, 
+		fontfamily=("times")
+	)
+	
+	plot!(
+		p_hoeff, x, 
+		hoeffding_bound.(x, num_coins), 
+		label="Hoeffding's bound  ", linewidth=2
+	)
+	
+	plot!(p_hoeff, x, p1, label="First coin  ",seriesalpha=0.5, linewidth=3)
+	plot!(p_hoeff, x, prand, label="Random coin  ", seriesalpha=0.3, linewidth=3)
+	plot!(p_hoeff, x, pmin, label="Min. num. of tails  ", linewidth=2)
+end
+
+# ╔═╡ 2b608840-8b04-422d-83aa-2e99861adb6e
+savefig(p_hoeff, "hoeffding.pdf")
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [compat]
 Plots = "~1.38.12"
@@ -98,9 +174,9 @@ Plots = "~1.38.12"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.1"
+julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "ca8ccb35183a46156182663e3d031923ad0ef12a"
+project_hash = "26b79fb098e123392b237ade4acd3dc050e1a994"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -180,7 +256,7 @@ version = "4.6.1"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "0.5.2+0"
+version = "1.0.1+0"
 
 [[deps.ConcurrentUtilities]]
 deps = ["Serialization", "Sockets"]
@@ -749,7 +825,7 @@ version = "1.0.0"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.0"
+version = "1.10.1"
 
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
@@ -1026,9 +1102,17 @@ version = "1.4.1+0"
 # ╠═51621ea8-a7d4-4494-a849-ea5bfc88d3ee
 # ╠═cd1b6bfa-f8fa-11ed-1180-cb268d16a34d
 # ╠═89ac2822-c05c-4219-ade9-a331f60a071e
+# ╠═527aa2c2-e5f0-4f02-98a9-f76acdd17183
 # ╠═4560f6dc-8b85-470f-bc61-a224aa4277f6
+# ╟─6dc0d55f-e746-4a16-a87c-99be81327f31
 # ╠═e8549d6c-6e86-403c-b817-1b6ed1e5223f
+# ╟─b5dc6c33-3015-4e2c-b3df-80fa99bb838c
 # ╠═c0d0ab49-4729-43b1-a7b5-ed69b76db1b6
 # ╠═cbc43eca-ff80-4c22-ba4a-eb5cbaff1613
+# ╠═d3a43ddd-ae54-4b22-bc98-84e45026ed93
+# ╟─c58ba23b-de1c-42fe-9580-fe28f8e60902
+# ╠═214fc5b1-cc76-4760-8f43-913a6c476eba
+# ╠═f55c7ce8-44d3-4905-bbb1-b23f7985674a
+# ╠═2b608840-8b04-422d-83aa-2e99861adb6e
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
