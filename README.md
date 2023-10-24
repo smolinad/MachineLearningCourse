@@ -3,15 +3,15 @@
 Sebastian Molina  \
 [smolinad@unal.edu.co](mailto:smolinad@unal.edu.co)
 
-Every assignment in thsi reposiroty will be submitted as a `Pluto.jl` notebook. For offline exploration, you must:
+Every assignment in this repository will be submitted as a `Pluto.jl` notebook. For offline exploration, you must:
 1) Download the notebook.
 2) Install Julia. (https://julialang.org/)
-3) Run Julia and from Julia Command-line install the `Pluto` package as follows:
+3) Run Julia and from the Julia command line install the `Pluto` package as follows:
 ```
 julia> using Pkg
 julia> Pkg.add("Pluto")
 ```
-4) Run Pluto from Julia Command-line
+4) Run Pluto from the Julia command line.
 ```
 julia> using Pluto
 julia> Pluto.run()
